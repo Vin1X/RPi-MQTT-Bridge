@@ -2,6 +2,11 @@
 #include <fstream>
 #include <string>
 #include <sys/statvfs.h>
+#include <mosquitto.h>
+#include <unistd.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 using namespace std;
 
 struct MemoryInfo {
@@ -103,21 +108,76 @@ WirelessInfo get_wireless_data() {
     return data;
 }
 
+class MQTTService {
+    private:
+        struct mosquitto *m_mosq;
+        string m_topic;
+
+    public:
+        MQTTService(const string& topic) : m_topic(topic), m_mosq(nullptr) {
+            mosquitto_lib_init();
+        }
+
+        ~MQTTService() {
+            if (m_mosq) {
+                mosquitto_disconnect(m_mosq);
+                mosquitto_destroy(m_mosq);
+            }
+            mosquitto_lib_cleanup();
+        }
+
+        bool connect() {
+            m_mosq = mosquitto_new(m_topic.c_str(), true, NULL);
+            if (!m_mosq) {
+                std::cerr << "Error while initializing MQTT client!" << endl;
+                return false;
+            }
+            return (mosquitto_connect(m_mosq, "localhost", 1883, 60) == MOSQ_ERR_SUCCESS);
+        }
+
+        bool publish(const string& payload) {
+            if (mosquitto_publish(m_mosq, NULL, m_topic.c_str(), payload.length(), payload.c_str(), 0, false) != MOSQ_ERR_SUCCESS) {
+                std::cerr << "Error while publishing MQTT message!" << endl;
+                return false;
+            }
+            return true;
+        }
+};
+
 int main() {
-    cout << "CPU Temperature: " << get_cpu_temp() << " °C" << endl;
-    MemoryInfo ram = get_ram_usage();
+    MQTTService mqtt("telemetry");
+    mqtt.connect();
 
-    cout << "RAM Total: " << ram.total << " kB" << endl;
-    cout << "RAM Available: " << ram.available << " kB" << endl;
+    while (true) {
+        float cpu_temp = get_cpu_temp();
+        MemoryInfo ram = get_ram_usage();
+        float system_uptime = get_system_uptime();
+        DiskInfo disk = get_disk_usage();
+        WirelessInfo wlan = get_wireless_data();
+        json payload;
+        payload["cpu_temp"]=cpu_temp;
+        payload["ram"]["total"]=ram.total;
+        payload["ram"]["available"]=ram.available;
+        payload["uptime"]=system_uptime;
+        payload["disk"]["total"]=disk.total;
+        payload["disk"]["free"]=disk.free;
+        payload["wlan"]["link"]=wlan.link;
+        payload["wlan"]["signal"]=wlan.signal;
+        payload["wlan"]["noise"]=wlan.noise;
 
-    cout << "Uptime: " << get_system_uptime() << " seconds" << endl;
-
-    DiskInfo disk = get_disk_usage();
-    cout << "Disk Free: " << disk.free << " kB" << endl;
-    cout << "Disk Total: " << disk.total << " kB" << endl;
-
-    WirelessInfo wlan = get_wireless_data();
-    cout << "Wlan link: " << wlan.link << endl;
-    cout << "Wlan signal: " << wlan.signal << " dBm" << endl;
-    cout << "Wlan noise: " << wlan.noise << " dBm" << endl;
+        // payload = {
+        //     "cpu_temp": cpu_temp,
+        //     "ram_total": ram.total,
+        //     "ram_available": ram.available,
+        //     "uptime": system_uptime,
+        //     "disk_total": disk.total,
+        //     "disk_free": disk.free,
+        //     "wlan_link": wlan.link,
+        //     "wlan_signal": wlan.signal,
+        //     "wlan_noise": wlan.noise
+        // };
+        cout << payload << endl;
+        mqtt.publish(payload.dump().c_str());
+        sleep(5);
+    }
 }
