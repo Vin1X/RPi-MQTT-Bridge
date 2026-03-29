@@ -41,7 +41,11 @@ MemoryInfo get_ram_usage() {
 }
 
 float get_system_uptime() {
-    return 0.0;
+    float uptime;
+    ifstream file("/proc/uptime");
+    file >> uptime;
+
+    return uptime;
 }
 
 float get_disk_usage() {
@@ -58,4 +62,6 @@ int main() {
 
     cout << "RAM Total: " << ram.total << " kB" << endl;
     cout << "RAM Available: " << ram.available << " kB" << endl;
+
+    cout << "Uptime: " << get_system_uptime() << " seconds" << endl;
 }
