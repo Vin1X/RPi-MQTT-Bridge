@@ -14,6 +14,12 @@ struct DiskInfo {
     unsigned long free;
 };
 
+struct WirelessInfo {
+    float link;
+    float signal;
+    float noise;
+};
+
 float get_cpu_temp() {
     string cpu_temp_raw;
     ifstream file("/sys/class/thermal/thermal_zone0/temp");
@@ -26,7 +32,7 @@ float get_cpu_temp() {
 }
 
 MemoryInfo get_ram_usage() {
-    MemoryInfo memory_info;
+    MemoryInfo memory_info = {0,0};
     string line;
     int found_count = 0;
     ifstream file("/proc/meminfo");
@@ -47,8 +53,10 @@ MemoryInfo get_ram_usage() {
 }
 
 float get_system_uptime() {
-    float uptime;
+    float uptime = -1.0;
     ifstream file("/proc/uptime");
+    if (!file.is_open()) return uptime;
+
     file >> uptime;
 
     return uptime;
@@ -66,8 +74,33 @@ DiskInfo get_disk_usage() {
     }
 }
 
-float get_current_data_transfer() {
-    return 0.0;
+WirelessInfo get_wireless_data() {
+    WirelessInfo data = {-1, -1, -1};
+    std::ifstream file("/proc/net/wireless");
+    std::string line;
+
+    if (!file.is_open()) return data;
+
+    while (std::getline(file, line)) {
+        if (line.find("wlan0:") != std::string::npos) {
+            float link, signal;
+            int noise;
+
+            if (sscanf(
+                line.c_str(),
+                "%*[^:]: %*x %f %f %d",
+                &link,
+                &signal,
+                &noise
+            ) == 3) {
+                data.link   = (int)link;
+                data.signal = (int)signal;
+                data.noise  = (int)noise;
+            }
+            break;
+        }
+    }
+    return data;
 }
 
 int main() {
@@ -82,4 +115,9 @@ int main() {
     DiskInfo disk = get_disk_usage();
     cout << "Disk Free: " << disk.free << " kB" << endl;
     cout << "Disk Total: " << disk.total << " kB" << endl;
+
+    WirelessInfo wlan = get_wireless_data();
+    cout << "Wlan link: " << wlan.link << endl;
+    cout << "Wlan signal: " << wlan.signal << " dBm" << endl;
+    cout << "Wlan noise: " << wlan.noise << " dBm" << endl;
 }
