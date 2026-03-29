@@ -1,11 +1,17 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sys/statvfs.h>
 using namespace std;
 
 struct MemoryInfo {
     long total;
     long available;
+};
+
+struct DiskInfo {
+    unsigned long total;
+    unsigned long free;
 };
 
 float get_cpu_temp() {
@@ -48,8 +54,16 @@ float get_system_uptime() {
     return uptime;
 }
 
-float get_disk_usage() {
-    return 0.0;
+DiskInfo get_disk_usage() {
+    struct statvfs disk_data;
+    DiskInfo disk_info;
+    if (statvfs("/", &disk_data)) {
+        return disk_info;
+    } else {
+        disk_info.total = disk_data.f_blocks * disk_data.f_frsize;
+        disk_info.free = disk_data.f_bavail * disk_data.f_frsize;
+        return disk_info;
+    }
 }
 
 float get_current_data_transfer() {
@@ -64,4 +78,8 @@ int main() {
     cout << "RAM Available: " << ram.available << " kB" << endl;
 
     cout << "Uptime: " << get_system_uptime() << " seconds" << endl;
+
+    DiskInfo disk = get_disk_usage();
+    cout << "Disk Free: " << disk.free << " kB" << endl;
+    cout << "Disk Total: " << disk.total << " kB" << endl;
 }
