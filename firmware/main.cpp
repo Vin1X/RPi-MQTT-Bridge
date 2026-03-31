@@ -165,17 +165,6 @@ int main() {
         payload["wlan"]["signal"]=wlan.signal;
         payload["wlan"]["noise"]=wlan.noise;
 
-        // payload = {
-        //     "cpu_temp": cpu_temp,
-        //     "ram_total": ram.total,
-        //     "ram_available": ram.available,
-        //     "uptime": system_uptime,
-        //     "disk_total": disk.total,
-        //     "disk_free": disk.free,
-        //     "wlan_link": wlan.link,
-        //     "wlan_signal": wlan.signal,
-        //     "wlan_noise": wlan.noise
-        // };
         cout << payload << endl;
         mqtt.publish(payload.dump().c_str());
         sleep(5);
