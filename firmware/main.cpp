@@ -25,6 +25,31 @@ struct WirelessInfo {
     float noise;
 };
 
+struct CpuTicks {
+    long long idle;
+    long long total;
+};
+
+// TODO: Not working properly, displays around 50% of acutal usage
+CpuTicks get_cpu_usage() {
+    ifstream file("/proc/stat");
+    if (!file.is_open()) return {-1, -1};
+    string name;
+    long long user, nice, system, idle, iowait, irq, softirq, steal, total;
+    file >> name >> user >> nice >> system >> idle >> iowait >> irq >> softirq >> steal;
+    file.close();
+
+    total = user + nice + system + idle + iowait + irq + softirq + steal;
+
+    return {idle, total};
+}
+
+double calc_cpu_usage(const CpuTicks& prev, const CpuTicks& curr) {
+    long long total_diff = curr.total - prev.total;
+    long long idle_diff = curr.idle - prev.idle;
+    return 100.0 * (1.0 - (double)idle_diff / total_diff); // Double to avoid integer division
+}
+
 float get_cpu_temp() {
     string cpu_temp_raw;
     ifstream file("/sys/class/thermal/thermal_zone0/temp");
@@ -155,7 +180,7 @@ int main() {
         DiskInfo disk = get_disk_usage();
         WirelessInfo wlan = get_wireless_data();
         json payload;
-        payload["cpu_temp"]=cpu_temp;
+        payload["cpu"]["temp"]=cpu_temp;
         payload["ram"]["total"]=ram.total;
         payload["ram"]["available"]=ram.available;
         payload["uptime"]=system_uptime;
@@ -165,8 +190,11 @@ int main() {
         payload["wlan"]["signal"]=wlan.signal;
         payload["wlan"]["noise"]=wlan.noise;
 
+        CpuTicks cpu_ticks = get_cpu_usage();
+        sleep(2);
+        CpuTicks cpu_ticks2 = get_cpu_usage();
+        payload["cpu"]["usage"] = calc_cpu_usage(cpu_ticks, cpu_ticks2);
         cout << payload << endl;
         mqtt.publish(payload.dump().c_str());
-        sleep(5);
     }
 }
